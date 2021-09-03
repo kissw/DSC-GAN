@@ -61,36 +61,6 @@ class GetLatent:
         measurements = []
         images = []
 
-        # for i in range(0, self.iter_lstm):
-        #     sub_samples = self.test_data[ i : i+lstm_timestep*lstm_dataterm:lstm_dataterm]
-        #     sub_image_names = []
-        #     sub_measurements = []
-        #     sub_images = []
-        #     j = 1
-        #     for image_name, measurement, in sub_samples:
-        #         image_path = self.data_path + image_name
-        #         image = cv2.imread(image_path)
-        #         if self.Config.data_collection['crop'] is not True:
-        #             image = image[self.Config.data_collection['image_crop_y1']:self.Config.data_collection['image_crop_y2'],
-        #                             self.Config.data_collection['image_crop_x1']:self.Config.data_collection['image_crop_x2']]
-        #         image = cv2.resize(image,
-        #                             (self.Config.neural_net['input_image_width'], self.Config.neural_net['input_image_height']))
-        #         image = self.image_process.process(image)
-
-        #         sub_image_names.append(image_name)
-        #         sub_images.append(image)
-        #         if j % lstm_timestep is 0:
-        #             sub_measurements.append(measurement)
-        #         j += 1
-            
-            
-        #     images.append(sub_images)
-        #     image_names.append(sub_image_names)
-        #     measurements.append(sub_measurements)
-
-        #     cur_output = 'Prepare data : {0}/{1}\r'.format(i, self.iter_lstm)
-        #     sys.stdout.write(cur_output)
-        #     sys.stdout.flush()
         sub_image_names = []
         sub_images = []
         for i, (image_name, measurement) in enumerate(self.test_data):
