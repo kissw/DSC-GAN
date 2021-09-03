@@ -55,43 +55,68 @@ class GetLatent:
         lstm_timestep = self.Config.neural_net['lstm_timestep']
         lstm_dataterm = self.Config.neural_net['lstm_dataterm']
         
-        self.num_samples = (num_samples - lstm_timestep*lstm_dataterm)//lstm_dataterm
+        self.iter_lstm = (num_samples - lstm_timestep*lstm_dataterm)//lstm_dataterm
         
         image_names = []
         measurements = []
         images = []
 
-        for i in range(0, self.num_samples):
-            sub_samples = self.test_data[ i : i+lstm_timestep*lstm_dataterm:lstm_dataterm]
-            sub_image_names = []
-            sub_measurements = []
-            sub_images = []
-            j = 1
-            for image_name, measurement, in sub_samples:
-                image_path = self.data_path + image_name
-                image = cv2.imread(image_path)
-                if self.Config.data_collection['crop'] is not True:
-                    image = image[self.Config.data_collection['image_crop_y1']:self.Config.data_collection['image_crop_y2'],
-                                    self.Config.data_collection['image_crop_x1']:self.Config.data_collection['image_crop_x2']]
-                image = cv2.resize(image,
-                                    (self.Config.neural_net['input_image_width'], self.Config.neural_net['input_image_height']))
-                image = self.image_process.process(image)
+        # for i in range(0, self.iter_lstm):
+        #     sub_samples = self.test_data[ i : i+lstm_timestep*lstm_dataterm:lstm_dataterm]
+        #     sub_image_names = []
+        #     sub_measurements = []
+        #     sub_images = []
+        #     j = 1
+        #     for image_name, measurement, in sub_samples:
+        #         image_path = self.data_path + image_name
+        #         image = cv2.imread(image_path)
+        #         if self.Config.data_collection['crop'] is not True:
+        #             image = image[self.Config.data_collection['image_crop_y1']:self.Config.data_collection['image_crop_y2'],
+        #                             self.Config.data_collection['image_crop_x1']:self.Config.data_collection['image_crop_x2']]
+        #         image = cv2.resize(image,
+        #                             (self.Config.neural_net['input_image_width'], self.Config.neural_net['input_image_height']))
+        #         image = self.image_process.process(image)
 
-                sub_image_names.append(image_name)
-                sub_images.append(image)
-                if j % lstm_timestep is 0:
-                    sub_measurements.append(measurement)
-                j += 1
+        #         sub_image_names.append(image_name)
+        #         sub_images.append(image)
+        #         if j % lstm_timestep is 0:
+        #             sub_measurements.append(measurement)
+        #         j += 1
+            
+            
+        #     images.append(sub_images)
+        #     image_names.append(sub_image_names)
+        #     measurements.append(sub_measurements)
 
-            images.append(sub_images)
-            image_names.append(sub_image_names)
-            measurements.append(sub_measurements)
-
-            cur_output = 'Prepare data : {0}/{1}\r'.format(i, self.num_samples)
+        #     cur_output = 'Prepare data : {0}/{1}\r'.format(i, self.iter_lstm)
+        #     sys.stdout.write(cur_output)
+        #     sys.stdout.flush()
+        sub_image_names = []
+        sub_images = []
+        for i, (image_name, measurement) in enumerate(self.test_data):
+            image_path = self.data_path + image_name
+            image = cv2.imread(image_path)
+            if self.Config.data_collection['crop'] is not True:
+                image = image[self.Config.data_collection['image_crop_y1']:self.Config.data_collection['image_crop_y2'],
+                                self.Config.data_collection['image_crop_x1']:self.Config.data_collection['image_crop_x2']]
+            image = cv2.resize(image,
+                                (self.Config.neural_net['input_image_width'], self.Config.neural_net['input_image_height']))
+            image = self.image_process.process(image)
+            
+            sub_images.append(image)
+            sub_image_names.append(image_name)
+            if len(sub_images) > lstm_timestep:
+                del sub_images[0]
+                del sub_image_names[0]
+                temp_sub_names = list(sub_image_names)
+                images.append(sub_images)
+                image_names.append(temp_sub_names)
+                measurements.append(measurement)
+            cur_output = 'Prepare data : {0}/{1}\r'.format(i, num_samples)
             sys.stdout.write(cur_output)
             sys.stdout.flush()
+        
         self.test_lstm_data = list(zip(images, image_names, measurements))
-
 
     def _get_latent(self):
         self._prepare_data()
@@ -105,7 +130,7 @@ class GetLatent:
             if model.get_layer(index = i).name is 'lstm':
                 break
         latent_model.summary()
-        for i in range(self.num_samples):
+        for i in range(self.iter_lstm):
             npimg = np.expand_dims(self.test_lstm_data[i][0], axis=0).reshape(-1, 
                                                             self.Config.neural_net['lstm_timestep'], 
                                                             self.Config.neural_net['input_image_height'],
@@ -116,7 +141,7 @@ class GetLatent:
             # print(latent_var)
             self.latent_var.append(latent_var)
             
-            cur_output = 'Get latent : {0}/{1}\r'.format(i, self.num_samples)
+            cur_output = 'Get latent : {0}/{1}\r'.format(i, self.iter_lstm)
             sys.stdout.write(cur_output)
             sys.stdout.flush()
         
@@ -130,7 +155,7 @@ class GetLatent:
                     + '_n' +  str(self.Config.neural_net['network_type']) 
                     + const.DATA_EXT, "w+")
         
-        for i in range(self.num_samples):
+        for i in range(self.iter_lstm):
             # print(self.measurement[i][0])
             latent = ""
             image_name = ""
@@ -146,11 +171,11 @@ class GetLatent:
                      image_name += ', '
             # print(self.measurement)
             line = "{},{},{}\r\n".format( image_name, 
-                                            self.test_lstm_data[i][2][0][0], 
+                                            self.test_lstm_data[i][2][0], 
                                             latent)
             text.write(line)
 
-            cur_output = 'Export latent : {0}/{1}\r'.format(i, self.num_samples)
+            cur_output = 'Export latent : {0}/{1}\r'.format(i, self.iter_lstm)
             sys.stdout.write(cur_output)
             sys.stdout.flush()
 
@@ -171,6 +196,11 @@ if __name__ == '__main__':
         pool.map(main())
         pool.close()
         pool.join()
+        
+        # t = threading.Thread(target=print, args("multithread Hi",))
+        # t.start()
+        print("threading start")
+        
         # main()
     except KeyboardInterrupt:
         print('\nShutdown requested. Exiting...')
