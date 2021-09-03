@@ -78,8 +78,9 @@ class GetLatent:
             if len(sub_images) > lstm_timestep:
                 del sub_images[0]
                 del sub_image_names[0]
+                temp_sub_images = list(sub_images)
                 temp_sub_names = list(sub_image_names)
-                images.append(sub_images)
+                images.append(temp_sub_images)
                 image_names.append(temp_sub_names)
                 measurements.append(measurement)
             cur_output = 'Prepare data : {0}/{1}\r'.format(i, num_samples)
