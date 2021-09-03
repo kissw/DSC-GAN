@@ -1,2 +1,2 @@
-# DSC-GAN
-Driving Style Converter using Generative Adversarial Network
+# DST
+Driving Style Transfer

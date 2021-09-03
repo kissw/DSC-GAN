@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./oscar/neural_net"
+    ]
+}
