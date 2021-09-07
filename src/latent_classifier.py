@@ -5,6 +5,8 @@ import sys
 import cv2
 import numpy as np
 import pandas as pd
+import keras.backend as K
+import tensorflow as tf
 from progressbar import ProgressBar
 from keras import losses, optimizers
 from keras.models import model_from_json, Sequential
@@ -41,6 +43,10 @@ class LatentClassifier:
         self.num_latent = 100
         self.label = []
         self.latent = []
+        self.steering_angle = []
+        self.label_valid = []
+        self.latent_valid = []
+        self.steering_angle_valid = []
         self._prepare_data()
         
     def _generate_data_path(self, data_path):
@@ -52,7 +58,8 @@ class LatentClassifier:
         else:
             csv_name = data_path
         self.csv_name = csv_name
-        self.csv_path = data_path + '/' + csv_name + '_latent' + const.DATA_EXT  # use it for csv file name
+        self.csv_path = data_path +'/train'+'/'+csv_name+ '_latent' + const.DATA_EXT  # use it for csv file name
+        self.csv_path_valid = data_path +'/valid'+'/'+csv_name+ '_latent' + const.DATA_EXT  # use it for csv file name
         self.data_path = data_path + '/'
 
     def _drive_data(self):
@@ -61,49 +68,63 @@ class LatentClassifier:
             self.csv_header.insert(i+2,str(i))
             
         self.df = pd.read_csv(self.csv_path, names=self.csv_header, index_col=False)
+        self.df_valid = pd.read_csv(self.csv_path_valid, names=self.csv_header, index_col=False)
         num_data = len(self.df)
+        num_data_valid = len(self.df_valid)
         # print(num_data)
         
         bar = ProgressBar()
         for i in bar(range(num_data)):
             self.label.append(self.df.loc[i]['label'])
-            
+            self.steering_angle.append(self.df.loc[i]['steering_angle'])
             sub_latent=[]
             for n in range(self.num_latent):
                 sub_latent.append(self.df.loc[i][str(n)])
             self.latent.append(sub_latent)
+        
+        bar = ProgressBar()
+        for i in bar(range(num_data_valid)):
+            self.label_valid.append(self.df_valid.loc[i]['label'])
+            self.steering_angle.append(self.df.loc[i]['steering_angle'])
+            sub_latent_valid=[]
+            for n in range(self.num_latent):
+                sub_latent_valid.append(self.df_valid.loc[i][str(n)])
+            self.latent_valid.append(sub_latent_valid)
             
         
     def _prepare_data(self):
         self._drive_data()
         num_samples = len(self.label)
         print('Samples: ', num_samples)
-        samples = list(zip(self.label, self.latent))
-        self.train_data, self.valid_data = train_test_split(samples, 
-                                        test_size=self.Config.neural_net['validation_rate'])
+        samples = list(zip(self.label, self.latent, self.steering_angle))
+        samples_valid = list(zip(self.label_valid, self.latent_valid, self.steering_angle))
+        self.train_data = samples
+        self.valid_data = samples_valid
         self.num_train_samples = len(self.train_data)
         self.num_valid_samples = len(self.valid_data)
         
     def _prepare_batch_samples(self, batch_samples):
         labels = []
         latents = []
-        for label, latent in batch_samples:
+        steering_angles = []
+        for label, latent, steering_angle in batch_samples:
             labels.append(label)
             latents.append(latent)
-        # print(len(labels))
-        # print(len(latents))
+            steering_angles.append(steering_angle)
         
-        return labels, latents
+        return labels, latents, steering_angles
     
     def _generator(self, samples, batch_size):
         num_samples = len(samples)
         while True: # Loop forever so the generator never terminates
-            # samples = sklearn.utils.shuffle(samples)
+            samples = sklearn.utils.shuffle(samples)
 
             for offset in range(0, num_samples, batch_size):
                 batch_samples = samples[offset:offset+batch_size]
                 
-                labels, latents = self._prepare_batch_samples(batch_samples)
+                labels, latents, steering_angles = self._prepare_batch_samples(batch_samples)
+                # X_train_latent = np.array(latents)
+                # X_train_steer = np.array(steering_angles)
                 X_train = np.array(latents)
                 y_train = np.array(labels)
                 
@@ -112,10 +133,30 @@ class LatentClassifier:
                 # print('y : ',y_train)
                 yield sklearn.utils.shuffle(X_train, y_train)
     
+    # def _mean_squared_error(self, y_true, y_pred):
+    #     y_true = tf.Print(y_true, [y_true[0]], "Inside y_true ")
+    #     y_pred = tf.Print(y_pred, [y_pred[0]], "Inside y_pred ")
+    #     diff = K.abs(y_true - y_pred)
+    #     return K.mean(K.square(diff))
+    
     def _compile(self):
         learning_rate = self.Config.neural_net['cnn_lr']
         decay = self.Config.neural_net['decay']
-        self.net_model.model.compile(loss=losses.sparse_categorical_crossentropy,
+        # print(self.Config.neural_net['loss_function'])
+        if self.Config.neural_net['loss_function'] == 'mse':
+            self.net_model.model.compile(loss=losses.mean_squared_error,
+                        optimizer=optimizers.Adam(lr=learning_rate, decay=decay), 
+                        metrics=['accuracy'])
+        elif self.Config.neural_net['loss_function'] == 'mae':
+            self.net_model.model.compile(loss=losses.mean_absolute_error,
+                        optimizer=optimizers.Adam(lr=learning_rate, decay=decay), 
+                        metrics=['accuracy'])
+        elif self.Config.neural_net['loss_function'] == 'sparse_cc':
+            self.net_model.model.compile(loss=losses.sparse_categorical_crossentropy,
+                        optimizer=optimizers.Adam(lr=learning_rate, decay=decay), 
+                        metrics=['accuracy'])
+        elif self.Config.neural_net['loss_function'] == 'binary':
+            self.net_model.model.compile(loss=losses.binary_crossentropy,
                         optimizer=optimizers.Adam(lr=learning_rate, decay=decay), 
                         metrics=['accuracy'])
     
@@ -141,7 +182,7 @@ class LatentClassifier:
         # early stopping
         patience = self.Config.neural_net['early_stopping_patience']
         earlystop = EarlyStopping(monitor='val_loss', min_delta=0, patience=patience, 
-                                  verbose=1, mode='min', save_freq=self.Config.neural_net['save_freq'])
+                                  verbose=1, mode='min')
         callbacks.append(earlystop)
 
         self._compile()
@@ -158,6 +199,7 @@ class LatentClassifier:
     
     def _train(self):
         self._start_training()
+        self.net_model.save(self.model_name)
         
 ###############################################################################
 #
