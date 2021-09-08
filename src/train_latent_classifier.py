@@ -31,7 +31,7 @@ import config
 # 테스트 : 학습에 사용한 데이터셋 말고 차선 중앙을 따라가며 수집된 데이터셋을 각 네트워크에 입력하여 latent를 뽑고
 # 해당 latent에 대해서도 분류를 잘하는지 확인.
 
-class LatentClassifier:
+class TrainLatentClassifier:
     def __init__(self, data_path):
         self._generate_data_path(data_path)
         
@@ -207,7 +207,7 @@ def main():
     if (len(sys.argv) != 2):
         exit('Usage:\n$ python {} data_path'.format(sys.argv[0]))
 
-    gl = LatentClassifier(sys.argv[1])
+    gl = TrainLatentClassifier(sys.argv[1])
     gl._train()
 
 ###############################################################################

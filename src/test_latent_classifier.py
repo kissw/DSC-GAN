@@ -132,7 +132,7 @@ class TestLatentClassifier:
             # print(predict)
             print(str(predict) + " " + str(int(gt_label[i])))
             # print(str(np.argmax(predict)) + " " + str(int(gt_label[i])))
-            if predict == int(gt_label[i]):
+            if str(predict) == str(int(gt_label[i])):
                 correct_count += 1
                     
         print("correct_count : "+ str(correct_count)+ "/"+ str(num_samples))
