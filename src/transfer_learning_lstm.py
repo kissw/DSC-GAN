@@ -163,14 +163,17 @@ class TransferLearningLSTM:
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         K.tensorflow_backend.set_session(sess)
-        # with tf.device('/cpu:0'):
         self.model = model_from_json(open(self.model_path+'.json').read())
         self.model.load_weights(self.model_path+'.h5')
+        # self.model.summary()
         for i in range(len(self.model.layers)):
-            if self.model.get_layer(index = i).name is 'lstm':
+            if self.model.get_layer(index = i).name == 'lstm':
+                print(self.model.get_layer(index = i).name)
                 self.model.layers[i].trainable = True
             else:
                 self.model.layers[i].trainable = False
+        # for i in range(len(self.model.layers)):
+        #     print(self.model.layers[i].trainable)
         self.model.summary()
         self._compile()
     
@@ -215,7 +218,7 @@ class TransferLearningLSTM:
                 validation_steps=self.num_valid_samples//self.Config.neural_net['batch_size'],
                 verbose=1, callbacks=callbacks, 
                 use_multiprocessing=True,
-                workers=24)
+                workers=1)
     
     def _train(self):
         self._start_training()
